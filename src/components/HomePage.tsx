@@ -132,7 +132,9 @@ export function HomePage({ onJoinRoom }: HomePageProps) {
           <HelpCircle className="w-5 h-5" />
           <span>{showRules ? 'Masquer' : 'Voir'} les règles</span>
         </button>
-
+<p className="mt-3 text-center text-xs text-slate-500">
+  Créé par <span className="text-slate-400 font-medium">Hastraly</span>
+</p>
         {showRules && (
           <div className="mt-4 bg-slate-800 rounded-xl p-6 border border-slate-700 text-slate-300 text-sm space-y-3">
             <h3 className="font-bold text-white text-base mb-2">Comment jouer ?</h3>
