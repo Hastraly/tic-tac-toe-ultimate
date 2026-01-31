@@ -134,7 +134,7 @@ export function HomePage({ onJoinRoom }: HomePageProps) {
 </button>
 
 <p className="mt-3 text-center text-xs text-slate-500">
-  Créé avec ♥ par <span className="text-slate-400 font-medium">Hastraly</span>
+  Créé avec ♥ par <span className="text-slate-400 font-medium">Hastaly</span>
 </p>
         {showRules && (
           <div className="mt-4 bg-slate-800 rounded-xl p-6 border border-slate-700 text-slate-300 text-sm space-y-3">
