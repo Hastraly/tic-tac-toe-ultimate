@@ -125,13 +125,14 @@ export function HomePage({ onJoinRoom }: HomePageProps) {
           )}
         </div>
 
-        <button
-          onClick={() => setShowRules(!showRules)}
-          className="mt-6 w-full flex items-center justify-center gap-2 text-slate-400 hover:text-cyan-400 transition-colors"
-        >
-          <HelpCircle className="w-5 h-5" />
-          <span>{showRules ? 'Masquer' : 'Voir'} les règles</span>
-        </button>
+<button
+  onClick={() => setShowRules(!showRules)}
+  className="mt-6 w-full flex items-center justify-center gap-2 text-slate-400 hover:text-cyan-400 transition-colors"
+>
+  <HelpCircle className="w-5 h-5" />
+  <span>{showRules ? 'Masquer' : 'Voir'} les règles</span>
+</button>
+
 <p className="mt-3 text-center text-xs text-slate-500">
   Créé par <span className="text-slate-400 font-medium">Hastraly</span>
 </p>
