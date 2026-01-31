@@ -77,8 +77,8 @@ export function HomePage({ onJoinRoom }: HomePageProps) {
           <div className="flex items-center justify-center mb-4">
             <Grid3x3 className="w-16 h-16 text-cyan-400" />
           </div>
-          <h1 className="text-5xl font-bold text-white mb-2">Morpion Ultime</h1>
-          <p className="text-slate-400">Jouez en ligne avec un ami</p>
+          <h1 className="text-5xl font-bold text-white mb-2">The Ultimate Tic-Tac-Toe</h1>
+          <p className="text-slate-400">Crée une partie et défie un ami!</p>
         </div>
 
         <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 border border-slate-700">
@@ -134,7 +134,7 @@ export function HomePage({ onJoinRoom }: HomePageProps) {
 </button>
 
 <p className="mt-3 text-center text-xs text-slate-500">
-  Créé par <span className="text-slate-400 font-medium">Hastraly</span>
+  Créé avec ♥ par <span className="text-slate-400 font-medium">Hastraly</span>
 </p>
         {showRules && (
           <div className="mt-4 bg-slate-800 rounded-xl p-6 border border-slate-700 text-slate-300 text-sm space-y-3">
