@@ -26,6 +26,8 @@ export function HomePage({ onJoinRoom }: HomePageProps) {
         current_player: 'X',
         allowed_board: null,
         winner: null,
+        draw_proposed_by: null,
+        forfeit_by: null,
       });
 
       if (insertError) throw insertError;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { MiniBoard } from './MiniBoard';
 import type { Room, Move } from '../types';
@@ -8,7 +8,7 @@ import {
   checkMainWinner,
   calculateNextAllowedBoard
 } from '../lib/gameLogic';
-import { Copy, Check, Home, X, Circle } from 'lucide-react';
+import { Copy, Check, Home, X, Circle, Flag, Handshake } from 'lucide-react';
 
 interface GameRoomProps {
   roomId: string;
@@ -20,28 +20,11 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [currentPlayerSymbol, setCurrentPlayerSymbol] = useState<'X' | 'O' | null>(null);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     loadRoom();
-    const channel = supabase
-      .channel(`room:${roomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'rooms',
-          filter: `id=eq.${roomId}`
-        },
-        (payload) => {
-          setRoom(payload.new as Room);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [roomId]);
 
   const loadRoom = async () => {
@@ -59,16 +42,66 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
       }
 
       setRoom(data as Room);
+
+      if (!data.player_x) {
+        setCurrentPlayerSymbol('X');
+        await supabase.from('rooms').update({ player_x: 'local' }).eq('id', roomId);
+      } else if (!data.player_o) {
+        setCurrentPlayerSymbol('O');
+        await supabase.from('rooms').update({ player_o: 'local' }).eq('id', roomId);
+      }
+
+      setupRealtimeListener();
     } catch (err) {
+      console.error('Erreur de chargement:', err);
       setError('Erreur de chargement');
-      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
+  const setupRealtimeListener = () => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    const channel = supabase
+      .channel(`room:${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rooms',
+          filter: `id=eq.${roomId}`
+        },
+        (payload) => {
+          setRoom(payload.new as Room);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Realtime listener connected');
+        }
+      });
+
+    channelRef.current = channel;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
+  }, []);
+
   const makeMove = async (move: Move) => {
-    if (!room || room.winner) return;
+    if (!room || room.winner || !currentPlayerSymbol) return;
+
+    if (room.current_player !== currentPlayerSymbol) {
+      return;
+    }
 
     if (!isValidMove(room.board, room.mini_winners, room.allowed_board, move)) {
       return;
@@ -76,7 +109,7 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
 
     const newBoard = room.board.map((mb, i) =>
       i === move.boardIndex
-        ? mb.map((cell, j) => j === move.cellIndex ? room.current_player : cell)
+        ? mb.map((cell, j) => j === move.cellIndex ? currentPlayerSymbol : cell)
         : mb
     );
 
@@ -88,7 +121,7 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
 
     const mainWinner = checkMainWinner(newMiniWinners);
     const nextAllowedBoard = calculateNextAllowedBoard(move.cellIndex, newMiniWinners, newBoard);
-    const nextPlayer = room.current_player === 'X' ? 'O' : 'X';
+    const nextPlayer = currentPlayerSymbol === 'X' ? 'O' : 'X';
 
     try {
       const { error: updateError } = await supabase
@@ -99,6 +132,7 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
           current_player: nextPlayer,
           allowed_board: nextAllowedBoard,
           winner: mainWinner,
+          draw_proposed_by: null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', roomId);
@@ -106,6 +140,60 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
       if (updateError) throw updateError;
     } catch (err) {
       console.error('Erreur lors du coup:', err);
+    }
+  };
+
+  const proposeDraw = async () => {
+    if (!room || !currentPlayerSymbol) return;
+
+    try {
+      await supabase
+        .from('rooms')
+        .update({ draw_proposed_by: currentPlayerSymbol })
+        .eq('id', roomId);
+    } catch (err) {
+      console.error('Erreur:', err);
+    }
+  };
+
+  const acceptDraw = async () => {
+    if (!room) return;
+
+    try {
+      await supabase
+        .from('rooms')
+        .update({ winner: 'draw' })
+        .eq('id', roomId);
+    } catch (err) {
+      console.error('Erreur:', err);
+    }
+  };
+
+  const rejectDraw = async () => {
+    if (!room) return;
+
+    try {
+      await supabase
+        .from('rooms')
+        .update({ draw_proposed_by: null })
+        .eq('id', roomId);
+    } catch (err) {
+      console.error('Erreur:', err);
+    }
+  };
+
+  const forfeit = async () => {
+    if (!room || !currentPlayerSymbol) return;
+
+    const winner = currentPlayerSymbol === 'X' ? 'O' : 'X';
+
+    try {
+      await supabase
+        .from('rooms')
+        .update({ forfeit_by: currentPlayerSymbol, winner })
+        .eq('id', roomId);
+    } catch (err) {
+      console.error('Erreur:', err);
     }
   };
 
@@ -180,30 +268,54 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
         </div>
 
         <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                room.current_player === 'X' ? 'bg-cyan-500/20 border border-cyan-400' : 'bg-slate-700'
+                room.current_player === 'X' && !room.winner ? 'bg-cyan-500/20 border border-cyan-400' : 'bg-slate-700'
               }`}>
                 <X className="text-cyan-400" size={24} strokeWidth={3} />
                 <span className="text-white font-semibold">Joueur X</span>
               </div>
               <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                room.current_player === 'O' ? 'bg-pink-500/20 border border-pink-400' : 'bg-slate-700'
+                room.current_player === 'O' && !room.winner ? 'bg-pink-500/20 border border-pink-400' : 'bg-slate-700'
               }`}>
                 <Circle className="text-pink-400" size={24} strokeWidth={3} />
                 <span className="text-white font-semibold">Joueur O</span>
               </div>
             </div>
 
-            {room.winner && (
-              <button
-                onClick={resetGame}
-                className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-              >
-                Nouvelle partie
-              </button>
-            )}
+            <div className="flex gap-2">
+              {!room.winner && currentPlayerSymbol && (
+                <>
+                  <button
+                    onClick={proposeDraw}
+                    disabled={room.draw_proposed_by === currentPlayerSymbol}
+                    className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors font-semibold text-sm"
+                    title="Proposer un match nul"
+                  >
+                    <Handshake size={18} />
+                    <span className="hidden sm:inline">Match nul</span>
+                  </button>
+                  <button
+                    onClick={forfeit}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold text-sm"
+                    title="Déclarer forfait"
+                  >
+                    <Flag size={18} />
+                    <span className="hidden sm:inline">Forfait</span>
+                  </button>
+                </>
+              )}
+
+              {room.winner && (
+                <button
+                  onClick={resetGame}
+                  className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Nouvelle partie
+                </button>
+              )}
+            </div>
           </div>
 
           {room.winner && (
@@ -211,13 +323,37 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
               <div className="text-2xl font-bold text-white">
                 {room.winner === 'draw'
                   ? 'Match nul !'
+                  : room.forfeit_by
+                  ? `Le joueur ${room.winner} a gagné (forfait)`
                   : `Le joueur ${room.winner} a gagné !`}
               </div>
             </div>
           )}
 
+          {room.draw_proposed_by && !room.winner && (
+            <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center justify-between">
+              <span className="text-amber-400">Le joueur {room.draw_proposed_by} propose un match nul</span>
+              {currentPlayerSymbol && currentPlayerSymbol !== room.draw_proposed_by && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={acceptDraw}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold text-sm"
+                  >
+                    Accepter
+                  </button>
+                  <button
+                    onClick={rejectDraw}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold text-sm"
+                  >
+                    Refuser
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {!room.winner && (
-            <div className="mt-4 text-center text-slate-400">
+            <div className="mt-4 text-center text-slate-400 text-sm">
               {room.allowed_board === null
                 ? 'Vous pouvez jouer sur n\'importe quel plateau'
                 : `Vous devez jouer sur le plateau surligné`}
@@ -234,7 +370,7 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
               winner={room.mini_winners[boardIndex]}
               isAllowed={room.allowed_board === null || room.allowed_board === boardIndex}
               onCellClick={(cellIndex) => makeMove({ boardIndex, cellIndex })}
-              disabled={!!room.winner}
+              disabled={!!room.winner || room.current_player !== currentPlayerSymbol}
             />
           ))}
         </div>
