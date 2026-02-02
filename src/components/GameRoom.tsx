@@ -22,9 +22,19 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
   const [copied, setCopied] = useState(false);
   const [currentPlayerSymbol, setCurrentPlayerSymbol] = useState<'X' | 'O' | null>(null);
   const channelRef = useRef<any>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadRoom();
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
   }, [roomId]);
 
   const loadRoom = async () => {
@@ -52,11 +62,39 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
       }
 
       setupRealtimeListener();
+      startPolling();
     } catch (err) {
       console.error('Erreur de chargement:', err);
       setError('Erreur de chargement');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startPolling = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+
+    pollIntervalRef.current = setInterval(() => {
+      refreshRoom();
+    }, 300);
+  };
+
+  const refreshRoom = async () => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (data) {
+        setRoom(data as Room);
+      }
+    } catch (err) {
+      console.error('Erreur lors du refresh:', err);
     }
   };
 
@@ -138,6 +176,8 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
         .eq('id', roomId);
 
       if (updateError) throw updateError;
+
+      await refreshRoom();
     } catch (err) {
       console.error('Erreur lors du coup:', err);
     }
@@ -151,6 +191,8 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
         .from('rooms')
         .update({ draw_proposed_by: currentPlayerSymbol })
         .eq('id', roomId);
+
+      await refreshRoom();
     } catch (err) {
       console.error('Erreur:', err);
     }
@@ -164,6 +206,8 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
         .from('rooms')
         .update({ winner: 'draw' })
         .eq('id', roomId);
+
+      await refreshRoom();
     } catch (err) {
       console.error('Erreur:', err);
     }
@@ -177,6 +221,8 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
         .from('rooms')
         .update({ draw_proposed_by: null })
         .eq('id', roomId);
+
+      await refreshRoom();
     } catch (err) {
       console.error('Erreur:', err);
     }
@@ -192,6 +238,8 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
         .from('rooms')
         .update({ forfeit_by: currentPlayerSymbol, winner })
         .eq('id', roomId);
+
+      await refreshRoom();
     } catch (err) {
       console.error('Erreur:', err);
     }
@@ -205,6 +253,9 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
 
   const resetGame = async () => {
     try {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
       await supabase.from('rooms').delete().eq('id', roomId);
       onLeave();
     } catch (err) {
