@@ -13,6 +13,8 @@ export interface Room {
   winner: Player | 'draw' | null;
   player_x: string | null;
   player_o: string | null;
+  player_x_name: string | null;
+  player_o_name: string | null;
   draw_proposed_by: Player | null;
   forfeit_by: Player | null;
   created_at: string;

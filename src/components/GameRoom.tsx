@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { MiniBoard } from './MiniBoard';
+import { PlayerNameModal } from './PlayerNameModal';
 import type { Room, Move } from '../types';
 import {
   isValidMove,
@@ -21,6 +22,8 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [currentPlayerSymbol, setCurrentPlayerSymbol] = useState<'X' | 'O' | null>(null);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [playerNameSet, setPlayerNameSet] = useState(false);
   const channelRef = useRef<any>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -56,9 +59,13 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
       if (!data.player_x) {
         setCurrentPlayerSymbol('X');
         await supabase.from('rooms').update({ player_x: 'local' }).eq('id', roomId);
+        setShowNameModal(true);
       } else if (!data.player_o) {
         setCurrentPlayerSymbol('O');
         await supabase.from('rooms').update({ player_o: 'local' }).eq('id', roomId);
+        setShowNameModal(true);
+      } else {
+        setPlayerNameSet(true);
       }
 
       setupRealtimeListener();
@@ -245,6 +252,27 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
     }
   };
 
+  const handlePlayerNameSubmit = async (name: string) => {
+    if (!currentPlayerSymbol || !room) return;
+
+    try {
+      const updateData = currentPlayerSymbol === 'X'
+        ? { player_x_name: name }
+        : { player_o_name: name };
+
+      await supabase
+        .from('rooms')
+        .update(updateData)
+        .eq('id', roomId);
+
+      setShowNameModal(false);
+      setPlayerNameSet(true);
+      await refreshRoom();
+    } catch (err) {
+      console.error('Erreur lors de la définition du pseudo:', err);
+    }
+  };
+
   const copyRoomLink = () => {
     navigator.clipboard.writeText(roomId);
     setCopied(true);
@@ -325,13 +353,23 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
                 room.current_player === 'X' && !room.winner ? 'bg-cyan-500/20 border border-cyan-400' : 'bg-slate-700'
               }`}>
                 <X className="text-cyan-400" size={24} strokeWidth={3} />
-                <span className="text-white font-semibold">Joueur X</span>
+                <div className="flex flex-col">
+                  <span className="text-white font-semibold text-sm">Joueur X</span>
+                  {room.player_x_name && (
+                    <span className="text-slate-400 text-xs">{room.player_x_name}</span>
+                  )}
+                </div>
               </div>
               <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
                 room.current_player === 'O' && !room.winner ? 'bg-pink-500/20 border border-pink-400' : 'bg-slate-700'
               }`}>
                 <Circle className="text-pink-400" size={24} strokeWidth={3} />
-                <span className="text-white font-semibold">Joueur O</span>
+                <div className="flex flex-col">
+                  <span className="text-white font-semibold text-sm">Joueur O</span>
+                  {room.player_o_name && (
+                    <span className="text-slate-400 text-xs">{room.player_o_name}</span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -425,6 +463,12 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
             />
           ))}
         </div>
+
+        <PlayerNameModal
+          playerSymbol={currentPlayerSymbol || 'X'}
+          onSubmit={handlePlayerNameSubmit}
+          isOpen={showNameModal && !playerNameSet}
+        />
       </div>
     </div>
   );
