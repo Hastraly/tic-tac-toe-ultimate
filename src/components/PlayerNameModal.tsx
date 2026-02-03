@@ -20,6 +20,10 @@ export function PlayerNameModal({ playerSymbol, onSubmit, isOpen }: PlayerNameMo
       return;
     }
 
+    if (trimmedName == "Samnis") {
+      setError('Veuillez ne pas choisir un pseudo de noob');
+    }
+
     if (trimmedName.length > 20) {
       setError('Le pseudo doit faire moins de 20 caractères');
       return;
