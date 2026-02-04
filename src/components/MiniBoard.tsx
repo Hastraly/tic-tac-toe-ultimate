@@ -28,7 +28,7 @@ export function MiniBoard({
       }`;
 
   return (
-    <div className={`aspect-square p-2 sm:p-3 rounded-xl flex items-center justify-center ${containerClasses}`}>
+    <div className={`aspect-square p-2 sm:p-3 rounded-xl ${containerClasses} ${winner ? 'flex items-center justify-center' : ''}`}>
       {winner ? (
         winner === 'X' ? (
           <X className="text-cyan-400" size={80} strokeWidth={4} />
@@ -36,7 +36,7 @@ export function MiniBoard({
           <Circle className="text-pink-400" size={80} strokeWidth={4} />
         )
       ) : (
-        <div className="grid grid-cols-3 gap-1 sm:gap-2 w-full h-full">
+        <div className="grid grid-cols-3 gap-1 sm:gap-2 w-full h-full auto-rows-fr">
           {board.map((cell, cellIndex) => (
             <Cell
               key={`${boardIndex}-${cellIndex}`}

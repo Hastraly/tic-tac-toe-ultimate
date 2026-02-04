@@ -413,8 +413,14 @@ export function GameRoom({ roomId, onLeave }: GameRoomProps) {
                 {room.winner === 'draw'
                   ? 'Match nul !'
                   : room.forfeit_by
-                  ? `Le joueur ${room.winner} a gagné (forfait)`
-                  : `Le joueur ${room.winner} a gagné !`}
+                  ? (() => {
+                      const winnerName = room.winner === 'X' ? room.player_x_name : room.player_o_name;
+                      return `${winnerName || `Joueur ${room.winner}`} a gagné (forfait)`;
+                    })()
+                  : (() => {
+                      const winnerName = room.winner === 'X' ? room.player_x_name : room.player_o_name;
+                      return `${winnerName || `Joueur ${room.winner}`} a gagné !`;
+                    })()}
               </div>
             </div>
           )}

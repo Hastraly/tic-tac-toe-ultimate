@@ -9,11 +9,12 @@ interface CellProps {
 }
 
 export function Cell({ value, onClick, disabled, size = 'small' }: CellProps) {
-  const sizeClasses = size === 'large'
+  const isSizeConstraint = size === 'large';
+  const sizeClasses = isSizeConstraint
     ? 'w-20 h-20 sm:w-24 sm:h-24'
-    : 'w-8 h-8 sm:w-10 sm:h-10';
+    : 'w-full h-full min-h-0 min-w-0';
 
-  const iconSize = size === 'large' ? 48 : 24;
+  const iconSize = size === 'large' ? 48 : 20;
 
   return (
     <button
